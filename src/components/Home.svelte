@@ -7,7 +7,7 @@
 
    let {
       socket,
-      openRooms,
+      openRooms = [],
       leaderboard = [],
       onlinePlayersList = [],
       onCreateRoom,
@@ -19,12 +19,30 @@
    let maxPlayers = $state(4)
    let isSpectator = $state(false)
    let showShop = $state(false)
-   let showProfile = $state(false) // <--- ADD THIS STATE
+   let showProfile = $state(false)
+
+   // --- FILTERS STATE ---
+   let statusFilter = $state('all') // 'all' | 'open' | 'live'
+   let modeFilter = $state('all') // 'all' | 'classic' | 'shared_prefix'
 
    const MIN_PLAYERS = 2
    const MAX_PLAYERS = 8
 
    const roomId = $derived(searchParams.get('roomId'))
+
+   // Dynamically filter openRooms based on active filters
+   const filteredRooms = $derived(
+      (openRooms || []).filter((room) => {
+         // Status Filter
+         if (statusFilter === 'open' && room.inProgress) return false
+         if (statusFilter === 'live' && !room.inProgress) return false
+
+         // Game Mode Filter
+         if (modeFilter !== 'all' && room.settings?.gameMode !== modeFilter) return false
+
+         return true
+      })
+   )
 
    function clampMaxPlayers() {
       let val = parseInt(maxPlayers, 10)
@@ -49,7 +67,6 @@
    }
 </script>
 
-<!-- CRITICAL FIX: Missing '>' bracket fixed -->
 <div
    class="lg:h-[100dvh] w-full max-w-6xl mx-auto p-3 md:p-4 flex flex-col gap-3 lg:gap-4 overflow-y-auto lg:overflow-hidden"
 >
@@ -112,7 +129,6 @@
             <ProfileModal onClose={() => (showProfile = false)} {onLogout} {socket} />
          {/if}
 
-         <!-- Rest of your original component remains the same -->
          <div class="w-full mb-3">
             <!-- svelte-ignore a11y_label_has_associated_control -->
             <label
@@ -169,7 +185,7 @@
          </div>
       </div>
 
-      <!-- LEADERBOARD (Unchanged) -->
+      <!-- LEADERBOARD -->
       <div
          class="w-full lg:flex-1 bg-white rounded-3xl p-4 md:p-5 shadow-[0_8px_0_0_rgba(148,163,184,0.4)] border-4 border-slate-100 h-full flex flex-col min-h-0"
       >
@@ -243,20 +259,93 @@
       <div
          class="w-full lg:flex-[2] bg-white rounded-3xl p-4 md:p-5 shadow-[0_8px_0_0_rgba(148,163,184,0.4)] border-4 border-slate-100 flex flex-col min-h-0"
       >
-         <div class="flex items-center gap-3 mb-3">
+         <!-- HEADER & FILTERS BAR -->
+         <div
+            class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 shrink-0"
+         >
             <h2
                class="text-xl md:text-2xl font-black text-slate-800 tracking-tight drop-shadow-sm uppercase whitespace-nowrap"
             >
                Public <span class="text-blue-500">Arenas</span>
             </h2>
-            <div class="flex-grow border-t-4 border-dashed border-slate-200 mt-1"></div>
+
+            <!-- FILTER CONTROLS -->
+            <div class="flex flex-wrap items-center gap-1.5 shrink-0">
+               <!-- Status Filter Pills -->
+               <div
+                  class="flex items-center bg-slate-100 p-1 rounded-xl border-2 border-slate-100 gap-1"
+               >
+                  <button
+                     class="px-2 py-0.5 text-[10px] font-extrabold uppercase rounded-lg transition-all {statusFilter ===
+                     'all'
+                        ? 'bg-blue-500 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600'}"
+                     onclick={() => (statusFilter = 'all')}
+                  >
+                     All Status
+                  </button>
+                  <button
+                     class="px-2 py-0.5 text-[10px] font-extrabold uppercase rounded-lg transition-all {statusFilter ===
+                     'open'
+                        ? 'bg-amber-400 text-slate-900 shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600'}"
+                     onclick={() => (statusFilter = 'open')}
+                  >
+                     Open
+                  </button>
+                  <button
+                     class="px-2 py-0.5 text-[10px] font-extrabold uppercase rounded-lg transition-all {statusFilter ===
+                     'live'
+                        ? 'bg-indigo-500 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600'}"
+                     onclick={() => (statusFilter = 'live')}
+                  >
+                     Live
+                  </button>
+               </div>
+
+               <!-- Game Mode Filter Pills -->
+               <div
+                  class="flex items-center bg-slate-100 p-1 rounded-xl border-2 border-slate-100 gap-1"
+               >
+                  <button
+                     class="px-2 py-0.5 text-[10px] font-extrabold uppercase rounded-lg transition-all {modeFilter ===
+                     'all'
+                        ? 'bg-blue-500 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600'}"
+                     onclick={() => (modeFilter = 'all')}
+                  >
+                     All Modes
+                  </button>
+                  <button
+                     class="px-2 py-0.5 text-[10px] font-extrabold uppercase rounded-lg transition-all {modeFilter ===
+                     'classic'
+                        ? 'bg-emerald-500 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600'}"
+                     onclick={() => (modeFilter = 'classic')}
+                  >
+                     Classic
+                  </button>
+                  <button
+                     class="px-2 py-0.5 text-[10px] font-extrabold uppercase rounded-lg transition-all {modeFilter ===
+                     'shared_prefix'
+                        ? 'bg-purple-500 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-600'}"
+                     onclick={() => (modeFilter = 'shared_prefix')}
+                  >
+                     Round Robin
+                  </button>
+               </div>
+            </div>
          </div>
+
+         <!-- ROOMS LIST -->
          <div
-            class="w-full {openRooms?.length > 0
+            class="w-full {filteredRooms.length > 0
                ? 'grid grid-cols-1 md:grid-cols-2 gap-3 content-start items-start'
                : 'flex flex-col'} flex-1 min-h-0 overflow-y-auto pr-2 playful-scrollbar"
          >
-            {#if !openRooms || openRooms.length === 0}
+            {#if filteredRooms.length === 0}
                <div
                   class="flex flex-col items-center justify-center py-8 w-full bg-slate-50 rounded-2xl border-4 border-dashed border-slate-200 text-slate-400 flex-1"
                >
@@ -274,12 +363,12 @@
                         d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                      />
                   </svg>
-                  <span class="text-xs font-extrabold tracking-wide uppercase"
-                     >No Arenas Found</span
-                  >
+                  <span class="text-xs font-extrabold tracking-wide uppercase">
+                     {openRooms.length === 0 ? 'No Arenas Found' : 'No Matching Arenas'}
+                  </span>
                </div>
             {:else}
-               {#each openRooms as room}
+               {#each filteredRooms as room}
                   <div
                      class="group flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border-4 {room.inProgress
                         ? 'border-indigo-100 hover:border-indigo-200 hover:shadow-[0_4px_0_0_rgba(199,210,254,1)]'
