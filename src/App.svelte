@@ -58,8 +58,7 @@
          socket = null
       }
 
-      // FIX: Stop execution here if there is no token.
-      // This prevents the "Vocab Auth Error: Missing token" in the console.
+      // Stop execution here if there is no token.
       if (!pb.authStore.token) {
          return
       }
@@ -68,7 +67,7 @@
       socket = io(`${socketDomain}/vocab-game`, {
          path: '/ws/vocab/',
          auth: {
-            collectionName: pb.authStore.model?.collectionName || '0_STUDENT',
+            collectionName: pb.authStore.model?.collectionName || 'users',
             token: pb.authStore.token,
          },
       })
@@ -154,6 +153,23 @@
       }
    })
 
+   // Helper function to extract specific Pocketbase errors
+   function parsePocketbaseError(err) {
+      if (err.response && err.response.data) {
+         const errors = []
+         const data = err.response.data
+
+         if (data.username?.message) errors.push(`Username: ${data.username.message}`)
+         if (data.email?.message) errors.push(`Email: ${data.email.message}`)
+         if (data.password?.message) errors.push(`Password: ${data.password.message}`)
+         if (data.passwordConfirm?.message)
+            errors.push(`Confirm Password: ${data.passwordConfirm.message}`)
+
+         if (errors.length > 0) return errors.join(' • ')
+      }
+      return err.message || 'An unknown error occurred.'
+   }
+
    async function handleLogin(e) {
       e.preventDefault()
       try {
@@ -164,7 +180,9 @@
          resetAuthFields()
          connectSocket()
       } catch (err) {
-         showError(err.message || 'Failed to log in. Check your credentials.')
+         showError(
+            parsePocketbaseError(err) || 'Failed to log in. Check your credentials.'
+         )
       }
    }
 
@@ -187,7 +205,7 @@
          resetAuthFields()
          connectSocket()
       } catch (err) {
-         showError(err.message || 'Failed to register.')
+         showError(parsePocketbaseError(err))
       }
    }
 
@@ -245,7 +263,7 @@
 
    function showError(msg) {
       errorMessage = msg
-      setTimeout(() => (errorMessage = ''), 3000)
+      setTimeout(() => (errorMessage = ''), 4000)
    }
 
    function showInfo(msg) {
@@ -304,8 +322,8 @@
    class="relative min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans overflow-hidden selection:bg-indigo-500/30"
 >
    <div class="absolute top-6 right-6 z-50 flex items-center gap-4">
-      <!-- Only render the Login button if they are NOT logged in -->
-      {#if !current.user}
+      <!-- Only render the Login button if they are NOT logged in but they managed to close the modal (if applicable) -->
+      {#if !current.user && !showAuthModal}
          <button
             class="bg-indigo-600 text-white font-black px-5 py-2.5 rounded-xl border-b-[4px] border-indigo-800 hover:bg-indigo-500 active:translate-y-[4px] active:border-b-0 transition-all text-sm uppercase tracking-wider"
             onclick={() => {
@@ -327,16 +345,16 @@
    ></div>
 
    <div
-      class="relative z-10 w-full flex flex-col font-[inter] items-center justify-center h-full"
+      class="relative z-10 w-full flex flex-col font-[inter] items-center justify-center h-full px-4"
    >
       {#if errorMessage}
-         <div class="toast toast-top toast-center z-50 mt-4">
+         <div class="toast toast-top toast-center z-[100] mt-4 max-w-[90vw]">
             <div
-               class="alert bg-slate-900/90 border-l-4 border-red-500 text-red-100 shadow-[0_0_20px_rgba(239,68,68,0.2)] backdrop-blur-md rounded-lg px-6 py-4 flex items-center gap-3"
+               class="alert bg-slate-900/90 border-l-4 border-red-500 text-red-100 shadow-[0_0_20px_rgba(239,68,68,0.2)] backdrop-blur-md rounded-lg px-6 py-4 flex items-start gap-3"
             >
                <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  class="stroke-current shrink-0 h-6 w-6 text-red-500"
+                  class="stroke-current shrink-0 h-6 w-6 text-red-500 mt-0.5"
                   fill="none"
                   viewBox="0 0 24 24"
                   ><path
@@ -346,13 +364,16 @@
                      d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
                   /></svg
                >
-               <span class="font-bold tracking-wide">{errorMessage}</span>
+               <!-- Text wraps nicely for long detailed pocketbase errors -->
+               <span class="font-bold tracking-wide text-sm leading-relaxed"
+                  >{errorMessage}</span
+               >
             </div>
          </div>
       {/if}
 
       {#if infoMessage}
-         <div class="toast toast-top toast-center z-50 mt-4 animate-bounce">
+         <div class="toast toast-top toast-center z-[100] mt-4 animate-bounce">
             <div
                class="alert bg-linear-to-r from-indigo-900/90 to-purple-900/90 border-l-4 border-indigo-400 shadow-[0_0_30px_rgba(99,102,241,0.4)] backdrop-blur-md rounded-lg px-6 py-4 flex items-center gap-3"
             >
@@ -376,58 +397,20 @@
          </div>
       {/if}
 
-      {#if view === 'home'}
-         <Home
-            {openRooms}
-            {onlinePlayersList}
-            {socket}
-            {leaderboard}
-            onCreateRoom={handleCreateRoom}
-            onJoinRoom={handleJoinRoom}
-            onLogout={handleLogout}
-         />
-      {:else if view === 'lobby'}
-         <Lobby
-            {gameState}
-            socketId={socket?.id}
-            {onlinePlayersList}
-            {socket}
-            {activeMessages}
-            {handleSendMessage}
-            onStartGame={handleStartGame}
-            onLeaveRoom={handleLeaveRoom}
-            {showError}
-         />
-      {:else if view === 'game'}
-         <Game
-            {gameState}
-            socketId={socket?.id}
-            {socket}
-            {activeMessages}
-            {eloResults}
-            {handleSubmitWord}
-            {handleSubmitPrefix}
-            {handleTyping}
-            {handleSendMessage}
-            {handleUseSkill}
-            {handleTogglePause}
-            onLeaveRoom={handleLeaveRoom}
-            {showError}
-         />
-      {/if}
-   </div>
-
-   {#if showAuthModal || !current.user}
-      <div
-         class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm px-4"
-      >
+      <!-- Replaced the fixed overlay with an inline conditional render: -->
+      <!-- If the user is unauthenticated OR the Auth modal is triggered, show ONLY the Auth UI -->
+      {#if showAuthModal || !current.user}
          <div
-            class="bg-white rounded-[2rem] p-8 shadow-2xl border-4 border-slate-100 w-full max-w-md animate-in zoom-in-95 fade-in duration-200 flex flex-col gap-6 relative text-slate-800"
+            class="bg-white rounded-[2rem] p-8 shadow-2xl border-4 border-slate-100 w-full max-w-md animate-in zoom-in-95 fade-in duration-200 flex flex-col gap-6 relative text-slate-800 my-8"
          >
-            <button
-               class="absolute top-5 right-6 text-slate-400 hover:text-slate-600 font-bold text-xl transition-colors"
-               onclick={() => (showAuthModal = false)}>✕</button
-            >
+            <!-- Only show close button if the user is actually logged in and just explicitly requested the modal -->
+            {#if current.user}
+               <button
+                  class="absolute top-5 right-6 text-slate-400 hover:text-slate-600 font-bold text-xl transition-colors"
+                  onclick={() => (showAuthModal = false)}>✕</button
+               >
+            {/if}
+
             <div class="text-center mt-2">
                <div
                   class="w-16 h-16 rounded-2xl bg-indigo-100 border-4 border-indigo-200 flex items-center justify-center text-3xl mx-auto mb-4 shadow-sm"
@@ -506,9 +489,52 @@
                </button>
             </p>
          </div>
-      </div>
-   {/if}
 
+         <!-- If they are authenticated, render the standard game views -->
+      {:else}
+         {#if view === 'home'}
+            <Home
+               {openRooms}
+               {onlinePlayersList}
+               {socket}
+               {leaderboard}
+               onCreateRoom={handleCreateRoom}
+               onJoinRoom={handleJoinRoom}
+               onLogout={handleLogout}
+            />
+         {:else if view === 'lobby'}
+            <Lobby
+               {gameState}
+               socketId={socket?.id}
+               {onlinePlayersList}
+               {socket}
+               {activeMessages}
+               {handleSendMessage}
+               onStartGame={handleStartGame}
+               onLeaveRoom={handleLeaveRoom}
+               {showError}
+            />
+         {:else if view === 'game'}
+            <Game
+               {gameState}
+               socketId={socket?.id}
+               {socket}
+               {activeMessages}
+               {eloResults}
+               {handleSubmitWord}
+               {handleSubmitPrefix}
+               {handleTyping}
+               {handleSendMessage}
+               {handleUseSkill}
+               {handleTogglePause}
+               onLeaveRoom={handleLeaveRoom}
+               {showError}
+            />
+         {/if}
+      {/if}
+   </div>
+
+   <!-- Invites remain absolutely positioned over everything else -->
    {#if incomingInvite}
       <div
          class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm px-4"
