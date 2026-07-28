@@ -193,7 +193,7 @@
       }
       try {
          await pb.collection('users').create({
-            username: authUsername,
+            name: authUsername,
             email: authEmail,
             password: authPassword,
             passwordConfirm: authPasswordConfirm,
