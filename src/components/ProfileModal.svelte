@@ -136,7 +136,7 @@
 
             <!-- Upload Avatar Button -->
             <label
-               class="absolute z-10 bottom-0 right-0 w-8 h-8 bg-indigo-500 hover:bg-indigo-400 text-white rounded-full flex items-center justify-center cursor-pointer shadow-md transition-colors border-2 border-white {isUploading
+               class="absolute z-20 bottom-0 right-0 w-8 h-8 bg-indigo-500 hover:bg-indigo-400 text-white rounded-full flex items-center justify-center cursor-pointer shadow-md transition-colors border-2 border-white {isUploading
                   ? 'opacity-50 pointer-events-none'
                   : ''}"
                title="Upload new Avatar"

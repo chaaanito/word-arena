@@ -318,6 +318,10 @@
 
 <GameAudio {gameState} socketId={socket?.id} {socket} />
 
+<svelte:head>
+   <title>Word Arena</title>
+</svelte:head>
+
 <main
    class="relative min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans overflow-hidden selection:bg-indigo-500/30"
 >
